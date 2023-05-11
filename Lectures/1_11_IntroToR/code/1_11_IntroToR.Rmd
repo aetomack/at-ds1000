@@ -1,0 +1,120 @@
+---
+title: "Intro to R"
+subtitle: "Lecture 1-- Installing R"
+author: "Alex"
+institute: "Vanderbilt University"
+date: "2023-01-11"
+output: html_document
+---
+```{r}
+require(tidyverse)
+```
+# Lecture 1
+
+## Organization
+
+"knit" compiles code-- outputs in a nice format
+
+"#" Heading
+
+"##" subheading
+
+"###" subsubheading 
+
+- Have to include spaces after tags for it to register 
+
+1. Numbered list 
+
+- bulleted list
+
+
+## Formatting
+
+**bold font**
+
+*italic*
+
+`code font` with backtick (tilde key)
+
+## How to actually write code
+
+``` {r}
+2+2
+```
+
+## How R works 
+
+- Object Oriented Languge (OOL)
+
+- Objects are created with the <- command
+
+**Assignment operator**:
+``` {r}
+object <- 2+2
+
+object
+```
+
+## Different types of objects
+
+- An element is a single value (number, letter, word)
+
+- A vector is a list of values 
+
+  - We create a list with the `c(value1, value2, value3)`
+  
+```{r}
+a_vector <- c(1,2,3)
+a_vector
+```
+
+- A list: stores multiple different value/elements/vectors
+
+```{r}
+a_list <- list(this_is_4 = 2+2,
+               this_is_text = "hello",
+               this_is_a_vector = runif(n = 3, min = 0, max = 10)
+               )
+a_list
+```
+
+
+## This section is about comments
+
+```{r}
+#This line creates a vector
+a_vector <- c(10,29,100)
+a_vector
+```
+
+## How RStudio Works 
+- RStudio is deeply interactive-- we can run individual code chunks
+  - We can also highlight specific lines of code by highlighting it and pressing ctrl+enter
+  
+  
+## Give it a try
+``` {r}
+# a is mulitplying 3 and 5
+a <- 3*5
+# b s a vector of the following values
+b <- c(10,21,43,87,175)
+# c is a vector output of the following arithmetic
+c <- a-b 
+c
+```
+## Functions and Packages 
+- What are packages? 
+  - Functions that someone else wrotes
+- R has many functions already installed
+  - These are known as "Base R", for example, sum()
+```{r}
+sum(object1)
+```
+- Installing packages
+  - To install tidyverse, for example, "install.packages("tidyverse")
+- Loading packages in R, type:
+```{r}
+require(tidyverse)
+#or
+library(tidyverse)
+```

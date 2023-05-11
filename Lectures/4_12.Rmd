@@ -1,0 +1,138 @@
+---
+title: "4_12"
+author: "Alex Tomack"
+date: "2023-04-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+require(tidytext)
+require(scales)
+tweet_words<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/8_Clustering_NLP/data/Trump_tweet_words.Rds?raw=true")
+tweet_words<-tweet_words%>%
+  mutate(PostPresident=Tweeting.date>as.Date("2016-11-06"))
+```
+
+Log-Odds
+- Odds: probability a word is used pre/post presidency
+- Log: Useful for removing skew 
+```{r}
+# odds1: caculating word drequencies per period
+odds1<-tweet_words%>%
+  count(word, PostPresident)%>% # word frequency by period
+  group_by(word)%>% 
+  filter(sum(n)>5)%>%# dropping infrequent words
+  spread(PostPresident, n, fill=0)%>%
+  ungroup()%>%
+  mutate(totFALSE=sum(`FALSE`),
+         totTRUE=sum(`TRUE`))
+
+# odds step 2: transforming frequencies into probabilities
+odds2<-odds1%>%
+  mutate(propFALSE=(`FALSE`+1)/(totFALSE+1),
+         propTRUE=(`TRUE`+1)/(totTRUE+1))
+
+# odds step 3: divide proportion FALSE by proportion TRUE
+odds3<-odds2%>%
+  mutate(odds=propTRUE/propFALSE)
+
+# why log
+odds3%>%
+  ggplot(aes(x=odds))+
+  geom_histogram()
+
+# so log it
+prepost_logodds<-odds3%>%
+  mutate(logodds=log(odds))
+```
+
+# lets describe the log odds
+```{r}
+prepost_logodds%>%
+  group_by(logodds>0)%>% # group by whether the word is more associate with pre or post
+  top_n(15, abs(logodds))%>%
+  ungroup()%>%
+  ggplot(aes(y=reorder(word,logodds), x=logodds,fill=logodds<0))+
+  geom_bar(stat='identity')
+```
+
+# meaning
+
+- thus far, everything is topic-related
+- how do we look at sentiment?
+  - sentiment analysis is based on dictionaries 
+    - just like stop words from last week
+    
+```{r}
+nrc<-get_sentiments("nrc")
+nrc%>%
+  select(sentiment)%>%
+  distinct()
+
+nrc%>%
+  count(sentiment)
+
+# proportion of words by sentiment pre/post presidency
+word_freq<-tweet_words%>%
+  group_by(PostPresident)%>%
+  count(word)%>%
+  filter(sum(n)>=5)%>%
+  mutate(prop=prop.table(n))# faster code/simpler code for calculating proportions
+
+#attach sentiment
+word_freq_sent<-word_freq%>%
+  inner_join(nrc, by='word') # type of merge command. attaches sentiment to word
+
+word_freq_sent%>%
+  group_by(sentiment)%>%
+  top_n(10,n)%>%
+  ungroup()%>%
+  ggplot(aes(x=n, y=word))+
+  geom_bar(stat="identity")+
+  facet_wrap(~sentiment, scales="free",nrow=3)
+
+# using sentiment for descriptive analysis
+tweet_sentiment<-tweet_words%>%
+  inner_join(nrc, by="word")
+
+# sentiment by presidency
+tweet_sentiment_summary<-tweet_sentiment%>%
+  group_by(PostPresident, sentiment)%>%
+  count(document, sentiment)%>%
+  ungroup()%>%
+  arrange(document)%>%
+  spread(sentiment, n,fill=0)%>%
+  mutate(net_sentiment=positive-negative)
+
+# is trump happier before becoming president?
+tweet_sentiment_summary%>%
+  group_by(PostPresident)%>%
+  mutate(nTweet=1)%>%
+  summarise(across(-document, sum)) # quicker way than summing each sentiment column one by one. Dont sum document
+
+# univariate viz
+tweet_sentiment_summary%>%
+  ggplot(aes(x=net_sentiment, y=PostPresident))+
+  geom_boxplot()
+
+# asked us to create a graph 
+tweet_sentiment%>%
+  group_by(PostPresident, sentiment,Tweeting.hour)%>%
+  count(document, sentiment)%>%
+  pivot_wider(names_from=sentiment, values_from=n, values_fill=0)%>%
+  mutate(sentiment=positive-negative)%>%
+  summarise(avgsentiment=mean(sentiment))%>%
+  ggplot(aes(x=Tweeting.hour, y=avgsentiment,color=PostPresident))+
+  geom_point(size=4)+
+  geom_hline(yintercept=0, linetype="dashed")+
+  labs(x="Tweeting hour (EST)",
+       y="Average Tweet Sentiment: Positive-Negative",
+       color="Is President?")
+```
+
+

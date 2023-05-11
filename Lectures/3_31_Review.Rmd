@@ -1,0 +1,78 @@
+---
+title: "3_29_Review"
+author: "3_27_Classification_pt3"
+date: "2023-03-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+require(tidymodels)
+
+ad<-read_rds('https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/7_Classification/data/admit_data.rds?raw=true')
+```
+# COMPARING TWO SPECIFICATIONS
+```{r}
+# using roc and auc to compare to models 
+
+# Which of these models is better? 
+form1<-"yield~net_price+sat+gpa"
+form2<-"yield~net_price+sat+gpa+distance+legacy"
+
+# can start by running on the full data
+m1<-glm(formula=form1, data=ad, family=binomial(link="logit"))
+m2<-glm(formula=form2, data=ad, family=binomial(link="logit"))
+
+# eval based on full data
+toEval<-ad%>%
+  mutate(prob1=predict(m1, type="response"),
+         prob2=predict(m2, type="response"),
+         yield=factor(yield, levels=c('1', '0')))
+
+roc_auc(toEval, "yield", "prob1") # rocs are really close-- determining whithc is actually better, CV
+roc_auc(toEval, "yield", "prob2")
+
+#Cross Validation
+set.seed(123)
+cvRes<-NULL
+for(i in 1:100){
+  inds<-sample(1:nrow(ad), size=round(nrow(ad)*.8), replace=F)
+  train<-ad%>%slice(inds)
+  test<-ad%>%slice(-inds)
+
+  # can start by running on the full data
+  m1<-glm(formula=form1, data=train, family=binomial(link="logit"))
+  m2<-glm(formula=form2, data=train, family=binomial(link="logit"))
+
+  # eval based on full data
+  toEval<-test%>%
+    mutate(prob1=predict(m1, newdata=test, type="response"),
+           prob2=predict(m2, newdata=test, type="response"),
+           yield=factor(yield, levels=c('1', '0')))
+
+  tmp1<-roc_auc(toEval, "yield", "prob1")%>% # rocs are really close-- determining whithc is actually better, CV
+    mutate(algo="short",
+           cvind=i)
+  tmp2<-roc_auc(toEval, "yield", "prob2")%>%
+    mutate(algo="long",
+           cvind=i)
+  
+  cvRes<-cvRes%>%
+    bind_rows(tmp1, tmp2)
+}
+cvRes%>%
+  group_by(algo)%>%
+  summarise(meanAUC=mean(.estimate))
+
+#vis 
+
+cvRes%>%
+  ggplot(aes(x=.estimate, fill=algo))+
+  geom_density(alpha=0.3)
+
+# we can conclude the additional predictors dont help all that much. 
+```

@@ -1,0 +1,247 @@
+---
+title: "Problem Set 4"
+author: "Alex Tomack"
+date: "Due Date: 2023-02-17"
+output:
+  html_document: default
+  pdf_document: default
+subtitle: Multivariate Visualization and Analysis
+institute: Vanderbilt University
+---
+
+```{r,include=F}
+knitr::opts_chunk$set(error=TRUE)
+```
+
+
+## Getting Set Up
+
+Open `RStudio` and create a new RMarkDown file (`.Rmd`) by going to `File -> New File -> R Markdown...`.
+Accept defaults and save this file as `[LAST NAME]_ps4.Rmd` to your `code` folder.
+
+Copy and paste the contents of this file into your `[LAST NAME]_ps4.Rmd` file. Then change the `author: [YOUR NAME]` (line 4) to your name.
+
+All of the following questions should be answered in this `.Rmd` file. There are code chunks with incomplete code that need to be filled in. 
+
+This problem set is worth 10 total points, plus five extra credit points. The point values for each question are indicated in brackets below. To receive full credit, you must both have the correct code **and include a comment describing what each line does**. In addition, some questions ask you to provide a written response in addition to the code. Unlike the first two problem sets, some of the code chunks are totally empty, requiring you to try writing the code from scratch. Make sure to comment each line, explaining what it is doing!
+
+You are free to rely on whatever resources you need to complete this problem set, including lecture notes, lecture presentations, Google, your classmates...you name it. However, the final submission must be complete by you. There are no group assignments. To submit, compiled the completed problem set and upload the PDF file to Brightspace by midnight on 2023/02/17.
+
+**Good luck!**
+
+## Question 0
+Require `tidyverse` and load the [`game_summary.rds`](https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/game_summary.Rds?raw=true') data to an object called `games`. (Tip: use the `read_rds()` function with the link to the raw data.)
+```{r}
+require(tidyverse)
+games<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/game_summary.Rds?raw=true")
+```
+
+
+## Question 1 [1 point]
+How many points, on average, did the Boston Celtics score at home and away games in the 2017 season? Calculate this answer and also plot the multivariate relationship. Explain why your chosen visualization is justified. EC: Draw two vertical lines for the average points at home and away and label them with the average points using `annotate(geom = 'text',...)`.
+```{r}
+games %>%
+  filter(yearSeason=="2017" & nameTeam=="Boston Celtics") %>% # Filter to the 2017 season (yearSeason) AND to the Boston Celtics (nameTeam)
+  group_by(locationGame)%>%# Group by the location of the game (locationnGame)
+  summarise(avg_pts=mean(pts))# Calculate the average points (pts)
+  
+games_data<- games %>%
+  filter(yearSeason=="2017" & nameTeam=="Boston Celtics") %>% 
+  group_by(locationGame)%>%
+  mutate(avg_pts=mean(pts)) 
+
+# EC approach-- do a density with pts on the x, fill will replace y and it will be according to location.
+games %>%
+  filter(yearSeason=="2017" & nameTeam=="Boston Celtics") %>% # Filter to the 2017 season (yearSeason) AND to the Boston  Celtics (nameTeam)
+  ggplot(aes(x=pts, fill=locationGame)) + # Create a multivariate plot comparing points scored between home and away games
+  geom_density(alpha=0.4) + # Choose the appropriate geom_... for this plot (i.e., geom_histogram(), geom_density(), geom_bar(), etc.)
+  labs(title="Points Scored by Boston Celtics at Home and Away Games",
+       subtitle="2017 Season",
+       x="Points Scored",
+       y="Proportion of Games") + # Add clear descriptions for the title, subtitle, axes, and legend
+  geom_vline(data=games_data, aes(xintercept=avg_pts, color=locationGame), linetype="dashed") + # EC: add vertical lines for the average points scored at home and away.
+  annotate(geom="text", x=games_data$avg_pts, y=Inf, label=round(games_data$avg_pts,2), angle=90, hjust=2) # EC: label the vertical lines
+```
+
+> We see the Boston Celtics have an average of 106.5122 pts scored at away games (A), and and average of 109.5122 pts scored at home games (H). Since we're visualizing a continuous variable, we want to use a densty curve. 
+
+## Question 2 [1 point]
+Now recreate the same plot for the 2018, 2019, and combined seasons. Imagine that you work for the Celtics organization and Brad Stevens (the GM), asks you if the team scores more points at home or away? Based on your analysis, what would you tell him?
+
+```{r}
+# By season
+games %>%
+  filter(nameTeam=="Boston Celtics") %>% # Filter to the Boston Celtics (nameTeam)
+  group_by(locationGame, yearSeason) %>% # Group by the location (locationGame) and the season (yearSeason)
+  summarise(avg_pts=mean(pts)) # Calculate the average points (pts)
+
+games_data2 <- games %>%
+  filter(nameTeam=="Boston Celtics") %>%
+  group_by(locationGame, yearSeason) %>%
+  mutate(avg_pts=mean(pts))
+  
+games %>%
+  filter(nameTeam=="Boston Celtics") %>% # Filter to the Boston Celtics (nameTeam)
+  ggplot(aes(x=pts, fill=locationGame)) + # Create a multivariate plot comparing points scored between home and away games
+  geom_density(alpha=0.4) + # Choose the appropriate geom_... for this plot (i.e., geom_histogram(), geom_density(), geom_bar(), etc.)
+  labs(title="Points Scored by Boston Celtics at Home and Away Games",
+       subtitle="2017-2019 Season",
+       x="Points Scored",
+       y="Proportion of Games") + # Add clear descriptions for the title, subtitle, axes, and legend
+  facet_wrap(~ yearSeason) + # Create separate panels for each season (facet_wrap())
+  geom_vline(data=games_data2, aes(xintercept=avg_pts, color=locationGame), linetype="dashed") 
+
+
+# Over all seasons combined
+games %>%
+  filter(nameTeam=="Boston Celtics") %>% # Filter to the Boston Celtics (nameTeam)
+  group_by(locationGame) %>% # Group by the location (locationGame)
+  summarise(avg_pts=mean(pts)) # Calculate the average points (pts)
+
+games_ov <- games %>%
+  filter(nameTeam=="Boston Celtics") %>%
+  group_by(locationGame) %>%
+  mutate(avg_pts=mean(pts))
+
+games %>%
+  filter(nameTeam=="Boston Celtics") %>% # Filter to the Boston Celtics (nameTeam)
+  ggplot(aes(x=pts, fill=locationGame)) + # Create a multivariate plot comparing points scored between home and away games
+  geom_density(alpha=0.4) + # Choose the appropriate geom_... for this plot (i.e., geom_histogram(), geom_density(), geom_bar(), etc.)
+  labs(title="Points Scored by Boston Celtics at Home and Away Games",
+       subtitle="All Seasons",
+       x="Points Scored",
+       y="Proportion of Games") + # Add clear descriptions for the title, subtitle, axes, and legend
+  geom_vline(data=games_ov, aes(xintercept=avg_pts, color=locationGame), linetype="dashed") 
+```
+
+> The average home game sees a more points scored than away games. However, fewer games were played at home during the 2018 and 2019 seasons-- allowing outliers to have a greater influence on the average points variable. Looking at all seasons, though, our conclusion that more points are scored at home than away. 
+
+## Question 3 [2 points + 1 EC]
+Brad Stevens thanks you for your answer, but is a well-trained statistician in his own right, and wants to know how confident you are in your claim. Bootstrap sample the data 1,000 times to provide him with a more sophisticated answer. How confident are you in your conclusion that the Celtics score more points at home games than away games? Make sure to `set.seed(123)` to ensure you get the same answer every time you `knit` your code! EC: Visualize your answer.
+
+```{r}
+# Set the seed!
+set.seed(123)
+forBS <- games %>% # To make things easier, create a new data object that is filtered to just the Celtics
+    filter(nameTeam=="Boston Celtics") # Filter to the Celtics (nameTeam)
+
+bsRes <- NULL # Instantiate an empty object to store data from the loop
+for(i in 1:1000) { # Loop 1,000 times
+  bsRes <- forBS %>%
+    sample_n(size=nrow(forBS),replace=T) %>% # Sample the data with replacement using all possible rows
+    group_by(locationGame) %>% # Group by the location of the game (locationGame)
+    summarise(avg_pts=mean(pts)) %>% # Calculate the average points (pts)
+    ungroup() %>% # Best practices!
+    spread(key=locationGame, value=avg_pts) %>% # Spread the data to get one column for average points at home and another for average points away
+    mutate(diff = H-A, # Calculate the difference between home and away points
+           bsInd = i) %>% # Save the bootstrap index
+    bind_rows(bsRes) # Append the result to the empty object from line 133
+} 
+
+# Calculate the confidence
+bsRes %>%
+  summarise(confidence = mean(diff>0, na.rm=T), # Calculate the proportion of bootstrap simulations where the home points are greater than the away points
+            avg_diff = mean(diff, na.rm=T)) # Calculate the overall average difference
+
+# EC: Plot the result
+```
+
+> Supporting our earlier claim, we are 99.2% confident that the Celtics have a homecourt advantage.
+
+## Question 4 [2 point + 1 EC]
+Re-do this analysis for three other statistics of interest to Brad: total rebounds (`treb`), turnovers (`tov`), and field goal percent (`pctFG`). EC: theorize about the seeming paradox in your answer to Brad Stevens. 
+
+```{r}
+set.seed(123)
+forBS <- games %>% # To make things easier, create a new data object that is filtered to just the Celtics
+    filter(nameTeam=="Boston Celtics") # Filter to the Celtics (nameTeam)
+
+bsRes <- NULL # Instantiate an empty object to store data from the loop
+for(i in 1:1000) { # Loop 1,000 times
+  bsRes <- forBS %>%
+    sample_n(size=n(), replace = T) %>% # Sample the data with replacement using all possible rows
+    group_by(locationGame) %>% # Group by the location of the game (locationGame)
+    summarise(avg_reb = mean(treb), # Calculate the average total rebounds (treb)
+              avg_tov = mean(tov), # Calculate the average turnovers (tov)
+              avg_pctFG = mean(pctFG)) %>% # Calculate the average field goal shooting percentage (pctFG)
+    ungroup() %>% # Best practices!
+    pivot_wider(names_from = locationGame, # Pivot wider to get each measure in its own column for home and away games.
+                values_from = c(avg_reb, avg_tov, avg_pctFG)) %>% # Use the values from the variables you created above
+    mutate(diff_reb = avg_reb_H-avg_reb_A, # Calculate the difference between home and away total rebounds
+           diff_tov = avg_tov_H-avg_tov_A, # Calculate the difference between home and away turnovers
+           diff_pctFG = avg_pctFG_H-avg_pctFG_A, # Calculate the difference between home and away field goal percentages
+           bsInd = i) %>% # Save the bootstrap index
+    bind_rows(bsRes) # Append the result to the empty object from line 165
+} 
+
+# Calculate the confidence
+bsRes %>%
+  summarise(confidence_reb = mean(diff_reb>0, na.rm=T), # Calculate the confidence for the home court advantage in rebounds
+            confidence_tov = mean(diff_tov>0, na.rm=T), # Calculate the confidence for the home court (dis)advantage in turnovers
+            confidence_pctFG = mean(diff_pctFG>0, na.rm=T)) # Calculate the confidence for the home court advantage in FG%
+
+```
+
+
+> We are 99.9% confident in our home court advantage in rebounds, and 90% confident in our home court advantage in field goal percentage, but we surprisingly have 94.2% confidence attached to our turnover variable. This would imply a home court disadvtange, as the Celtics frequently lose the ball at home. How could we have a home court advantage if we never have the ball?
+
+## Question 5 [2 point + 1 EC]
+Now Brad is asking for a similar analysis of other teams. Calculate the difference between home and away turnovers for every team in the league and prepare a summary table that includes both the average difference for each team, as well as your confidence about the difference is not zero. Based on these data, would you argue that there is an **overall** home court advantage in terms of turnovers across the NBA writ large? EC #1: visualize these summary results by plotting the difference on the x-axis, the teams (reordered) on the y-axis, and the points colored by whether you are more than 90% confident in your answer. EC #2: How should we interpret confidence levels less than 50%?
+
+```{r}
+set.seed(123)
+bsRes <- NULL # Instantiate an empty object to store data from the loop
+for(i in 1:1000) { # Loop 1,000 times
+  bsRes <- games %>%
+    group_by(nameTeam) %>% # Group by the team (nameTeam)
+    sample_n(size=n(), replace=T) %>% # Sample the data with replacement using all possible rows FOR EACH TEAM (hint: use n())
+    group_by(locationGame, nameTeam) %>% # Group by the location of the game (locationGame) and the team (nameTeam)
+    summarise(avg_tov = mean(tov, na.rm=T), # Calculate the average turnovers (tov)
+              .groups = 'drop') %>% # Best practices! (Also reduces the messages!)
+    pivot_wider(id_cols = nameTeam, # Set the ID colunm to the team (nameTeam)
+                names_from = locationGame, # Pivot wider to get each measure in its own column for home and away games
+                values_from = c('avg_tov')) %>% # Use the values from the average turnover measure you created above
+    mutate(diff_tov = H-A, # Calculate the difference between home and away turnovers
+           bsInd = i) %>% # Save the bootstrap index
+    bind_rows(bsRes) # Append the result to the empty object from line 165
+} 
+
+bsRes %>% # If you want to attempt the EC#1, it helps to save the summarized results to a new object 'toplot'
+  group_by(nameTeam) %>% # Group by the team (nameTeam)
+  summarise(conf_tov = round(mean(diff_tov>0), 2), # Calculate the confidence and round the number to two digits
+            diff_tov = round(mean(diff_tov), 2)) # Calculate the average difference and round the number to two digits
+
+# EC #1: Visualize the results. Make sure to label clearly!
+```
+
+> Analyzing the data, we find the average difference between home turnovers and away turnovers is negative, indicating that for most teams, turnovers occur more often at away games. That said, the confidence associated with each negative 'diff_tov' value is low, establishing that we are not confident about this relationship between turnovers at away games. Looking at the positive 'diff_tov' values (which indicates more turnovers happened at home games), we have a much higher confidence, establishing that we are confident in our conclusion regarding greater turnovers at home games. Therefore, we can't conclude a home court advantage exists. 
+
+## Question 6 [2 points]
+Redo question 5 but analyze the point difference instead. Do you think there is a systematic home court advantage in terms of points across the NBA writ large?
+
+```{r}
+set.seed(123)
+bsRes <- NULL # Instantiate an empty object to store data from the loop
+for(i in 1:1000) { # Loop 1,000 times
+  bsRes <- games %>%
+    group_by(nameTeam) %>% # Group by the team (nameTeam)
+    sample_n(size=n(), replace=T) %>% # Sample the data with replacement using all possible rows FOR EACH TEAM (hint: use n())
+    group_by(locationGame, nameTeam) %>% # Group by the location of the game (locationGame) and the team (nameTeam)
+    summarise(avg_pts = mean(pts, na.rm=T), # Calculate the average turnovers (tov)
+              .groups = 'drop') %>% # Best practices! (Also reduces the messages!)
+    pivot_wider(id_cols = nameTeam, # Set the ID colunm to the team (nameTeam)
+                names_from = locationGame, # Pivot wider to get each measure in its own column for home and away games
+                values_from = c('avg_pts')) %>% # Use the values from the average turnover measure you created above
+    mutate(diff_pts = H-A, # Calculate the difference between home and away turnovers
+           bsInd = i) %>% # Save the bootstrap index
+    bind_rows(bsRes) # Append the result to the empty object from line 165
+} 
+
+bsRes %>% # If you want to attempt the EC#1, it helps to save the summarized results to a new object 'toplot'
+  group_by(nameTeam) %>% # Group by the team (nameTeam)
+  summarise(conf_pts = round(mean(diff_pts>0), 2), # Calculate the confidence and round the number to two digits
+            diff_pts = round(mean(diff_pts), 2)) # Calculate the average difference and round the number to two digits
+```
+
+> The difference in points indicates a home court advantage, which is accompanied by high confidence for each 'diff_pts' variable.
+

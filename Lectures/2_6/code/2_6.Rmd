@@ -1,0 +1,110 @@
+---
+title: "2_6"
+author: "Alex Tomack"
+date: "2023-02-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list=ls())
+require(tidyverse)
+mi_ep <- read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/MI2020_ExitPoll_small.rds?raw=true")
+```
+
+Some light data science:
+
+- The gender gap in Trump support
+- Theory: Trump has expressed sexist views against women, therefore, women shoul dbe les slikely to support him
+- Analysis: Compare support for Trump among men and women. 
+  - Dependent variable: support for Trump
+  - Independent variable: Sex
+  - Multivariate: comparing support for Trump based on sex 
+  
+# Preparing Data Wrangling  
+
+```{r}
+Mi_final_small <- mi_ep %>%
+  filter(preschoice=="Donald Trump, the Republican" | preschoice=="Joe Biden, the Democrat") %>%
+  mutate(BidenVoter=ifelse(preschoice=="Joe Biden, the Democrat", 1, 0),
+         TrumpVoter=ifelse(BidenVoter==1,0,1),
+         AGE10=ifelse(AGE10==99,NA, AGE10))
+```
+
+# Analysis 
+```{r}
+Mi_final_small %>%
+  count(SEX, preschoice) %>% # shows pres choice for each gender
+  mutate(prop_overall=n/sum(n)) #shows prop of total voters, but we want prop of total women 
+```
+
+# Analysis of JUST women| One Way Conditional Mean 
+```{r}
+Mi_final_small %>%
+  count(SEX, preschoice) %>% # shows pres choice for each gender
+  mutate(prop_overall=n/sum(n)) %>%#shows prop of total voters
+  group_by(SEX) %>% 
+  mutate(tot_resp = sum(n)) %>% # sums each gender
+  mutate(prop_gender=n/tot_resp) %>% # now, proportion by gender
+  select(SEX, preschoice, prop_gender) # make it a bit more readable
+```
+
+So have we answered our research question? Is there a gender gap in Trump voters?
+
+- Looks like it, but is it really conclusive? 
+
+# Additional Theorizing 
+
+- The strength of the theorized relationship (the gender gap) may vary be age
+  - Younger women might be more offended by Trump's casual sexism
+  - Older women might be more inured to Trump's casual sexism
+- Theory: the "gender gap" will be larger among younger voters
+  - But also recognize that younger Americans are generally more progressive, meaning that both younger men and women are more offended by Trump's casual sexism.
+
+# Two-Way Conditional Mean
+```{r}
+toplot <- Mi_final_small %>%
+  group_by(SEX, AGE10) %>%
+  summarise(prop_trump=mean(TrumpVoter, na.rm=T),.groups="drop") %>%
+  mutate(prop_trump=round(prop_trump, digits=2)) %>%
+  spread(key=SEX,value=prop_trump) %>% # spreads the Sex value across multiple columns.
+  rename(Male=`1`, Female=`2`) %>%
+  mutate(gender_gap=Female-Male)
+```
+
+# plotting data toplot
+```{r}
+toplot %>%
+  ggplot(aes(x=AGE10)) +
+  geom_bar(aes(y=Male), fill="forestgreen", stat="identity", alpha=.5) +
+  geom_bar(aes(y=Female), fill="skyblue", stat="identity", alpha=.5)
+# but this is very confusing, so lets just plot the gender gap we created
+```
+
+```{r}
+toplot %>%
+  ggplot(aes(x=AGE10, y=gender_gap)) +
+  geom_bar(stat="identity")
+```
+
+# Spread command
+
+- Check gif in the slides to see exactly how it works, is SUPER useful 
+
+# Conditional Categorical Analysis
+
+Looking at reasons for voting for either candidate, we can't answer any questions but we rather generate them
+
+Can also do it by sex
+
+# Theorizing 
+
+- Research Question: Why do polls under-predict Trump more than Biden 
+  - Weary Trump voters-- if they're approached by CNN, NYT, etc., Trump voters likely wont respond. 
+  - Trump voters might be embarrassed to be Trump voter. 
+  - Fake news lol 
+    - "Any negative polls are fake news, just like the CNN, ABC, NBC polls in the election. Sorry, people want border security and extreme vetting."
+

@@ -1,0 +1,126 @@
+---
+title: "2_20 Lecture"
+author: "Alex Tomack"
+date: "2023-02-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Regression and Conditional Analysis**
+
+- Recall our discussion of conditional analysis
+  - Conditional -> depends on 
+  - Analyze with conditional means
+  
+  
+**Reminder of the Process**
+
+1. Determine the variable type
+  - chr, fct for cat, dbl for cont
+2. Type informs univariate analysis
+3. Combinations of types informs conditional analysis
+
+
+**What is Regression?**
+
+- Conditional means for continuous data
+  - But conditional means make a lot of mistakes. Can we do better? 
+    - Yes! We use regression lines
+    
+**Regression**
+
+- Calculating  a line that minimizes mistakes for every observation 
+  - Y= a +bX
+- All about reducing the error between each point and our regression line.
+- The line is substantively meaningful. 
+
+
+**Let's actually do some regression**
+What is the relationship between SAT scores and median future earnings?
+
+- The relationship might be positive
+```{r}
+require(tidyverse)
+debt<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/2_Intro_to_R/data/sc_debt.Rds?raw=true")
+
+```
+Step 1.) Look
+
+- Look for missingness
+  - Substantive: external validity 
+  - Technical: cross validation wont work
+  
+```{r}
+summary(debt %>% select(sat_avg, md_earn_wne_p6)) # lots of NAs, we'll have to drop them
+```
+Step 2.) Univariate Visualization
+
+- Why visualize both Y and X?
+  - Substantive: See which units you are talking about
+  - Technical: adjust for skew
+```{r}
+debt%>%
+  ggplot(aes(x=sat_avg))+
+  geom_histogram()
+
+debt%>%
+  ggplot(aes(x=md_earn_wne_p6))+
+  geom_histogram()
+```
+Step 3.) Multivariate Visualization
+
+- Is this visualization good? Not really. We have some massive outliers.
+```{r}
+debt%>%
+  ggplot(aes(x=sat_avg, y=md_earn_wne_p6))+
+  geom_point()+
+  geom_smooth(method="lm", se=F) # traditionally, this is how we'd plot a line of best fit. 
+```
+
+Step 4.) Regression
+
+- Introducing the lm(formula, data) function
+- Two inputs to care about:
+  - formula: code for Y= alpha + beta*X
+  - data: What is the data wer are using?
+-formula is written as Y~X
+  - R will calculate alpha and beta for us 
+  - Just need to tell it what is the regressand and the regressor
+  - The tilde is R's version fo the equal sign
+  
+Running the regression
+```{r}
+model_earn_sat <- lm(formula = md_earn_wne_p6 ~ sat_avg, data=debt)
+summary(model_earn_sat)
+```
+
+**Another Example **
+What is the relationship between admissions and future earnings?
+  - There should be a negative relationship between admissions rate and future earnings
+```{r}
+glimpse(debt) # see variables
+
+summary(debt%>%select(adm_rate, md_earn_wne_p6)) # NAs we have to remove. Affects how generalizable the data is.
+
+debt%>% # univariate for adm_rate
+  ggplot(aes(x=adm_rate)) +
+  geom_histogram(bins=50)
+
+debt%>% #univariate for med earnings
+  ggplot(aes(x=md_earn_wne_p6))+
+  geom_histogram()
+
+#multivariate
+debt%>%
+  ggplot(aes(x=adm_rate, y=md_earn_wne_p6))+
+  geom_point()+
+  geom_smooth(method="lm", se=F)
+
+# creating regression
+model_adm_wage<-lm(formula = md_earn_wne_p6 ~ adm_rate, data=debt)
+summary(model_adm_wage)
+```
+Conclusion: There is a negative relationship between admission rate and median earnings, indicated by the negative and statistically significant coefficient of admission rate.

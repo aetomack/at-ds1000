@@ -1,0 +1,160 @@
+---
+title: "3_20 (Classification)"
+author: "Alex Tomack"
+date: "2023-03-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Definitions
+
+- Classification: predicting the class of given data points via predictive modeling
+  - Class: AKA targets, labels, or categories
+  - Predictive modeling: approximate mapping function Y as a function of X 
+  
+# Mapping functions
+
+- we have already used mapping functions 
+  - linear regression
+    - Y ~ X
+- Underlying idea: X contains information about Y
+
+# It is in the Y
+  
+- If Y is continuous, we use OLS regression
+- If Y is binary, we use "logistic" regression (AKA "logit")
+
+# College Admissions
+
+- The math of college admissions
+  - accurately determining who will actually come here is important in colleges making money
+- How do colleges make money?
+  - Tuition 
+    - This is how they stay in business 
+  - Reputation  
+    - How would the admission of a student affect the school 
+    - Higher reputation -> can charge more tuition
+- Too few students -> not enough money
+- Too many students -> not enough capacity -> bad reputation -> not enough money
+- Thus, we need someone who's really good at predicting **yield**
+
+# Goal
+
+- Be able to predict yield and then more accurately disperse financial aid
+  - Is this ethical?
+    - What we're doing is exploiting financial incentives to attract certain types of students. 
+      - What if they have a bad time here? 
+      
+      
+```{r}
+require(tidyverse)
+require(scales)
+ad<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/7_Classification/data/admit_data.rds?raw=true")
+glimpse(ad) # each observation is a student, not necessarily one who comes.
+
+ad%>%
+  summarise(YieldRate=percent(mean(yield)))
+
+# Multivariate analysis?
+ad %>%
+  group_by(legacy)%>%
+  summarise(YieldRate=mean(yield)) # maybe legacy is a good predictor of yield rate
+
+ad%>%
+  group_by(visit)%>%
+  summarise(YieldRate=mean(yield))
+
+ad%>% # the best so far
+  group_by(sent_scores)%>%
+  summarise(YieldRate=mean(yield))
+
+ad%>%
+  ggplot(aes(x=sat, y=yield))+
+  geom_jitter() # y is binary, but treat like continuous 
+```
+Geom_jitter is neat, but not the best, since y is categorical and not continuous. 
+# heat map
+
+- 'ntile()' function
+```{r}
+toplot<-ad%>%
+  mutate(sat_decile=ntile(sat, n=10))%>% # break up sat variable into 10 equally sized bins
+  group_by(sat_decile, legacy)%>%
+  summarise(prob_attend=mean(yield))%>% # calculate average yield by sat bin and legacy
+  ungroup()
+
+toplot%>%
+  ggplot(aes(x=factor(legacy), y=factor(sat_decile), fill=prob_attend))+
+  geom_tile()+
+  scale_fill_gradient(low="grey80", high ="darkred")
+# we can conclude that legacy students with high SAT are more likely to attend  
+```
+```{r}
+ad<-ad%>%
+  mutate(sat_decile=ntile(sat, n=10))%>%
+  group_by(sat_decile,legacy)%>%
+  mutate(prob_attend=mean(yield))%>%
+  ungroup()%>%
+  #select(sat_decile, legacy, yield, prob_attend)%>%
+  mutate(pred_attend=ifelse(prob_attend>.5,1,0))
+```
+
+# Calculate sensitivity and specificity
+  
+- Sensitivity: proportion of correct 1s
+- Specificity: proportion of correct 0s
+```{r}
+ad%>%
+  group_by(yield)%>%
+  mutate(total_attend=n())%>% # calculate total students who did and didn't attend
+  group_by(yield,total_attend, pred_attend)%>%
+  summarise(nStudents=n())%>% # calculate total students by yield and by prediction
+  mutate(proportion=nStudents/total_attend) # transform into proportion
+# specificity-> 0.44
+# sensitivity-> 0.85
+# overall accuracy: (304+1256)/2150=73%
+```
+
+# Regression
+```{r}
+mLM <-lm(yield~sat+net_price+legacy, ad)
+summary(mLM)
+```
+```{r}
+ad%>%
+  mutate(prob_attend=predict(mLM))%>% # predict regression to get probabilities
+  mutate(pred_attend=ifelse(prob_attend>.5,1,0))%>% # convert probabilities to 0s and 1s
+  group_by(yield)%>%
+  mutate(total_attend=n())%>% # calculate total students who did and did not attend
+  group_by(yield,pred_attend,total_attend)%>%
+  summarise(nStudents=n())%>%
+  ungroup()%>%
+  mutate(proportion=nStudents/total_attend) # calculate proportion 
+```
+
+Dumbest guess would be that everyone attends. We'd be 68% correct-- our model improves on it, predicting 76% of data correctly, but that's not so much better.
+
+Thresholds matter: to fully evaluate we should loop different threshold value
+
+# looping over thresholds
+```{r}
+threshRes<-NULL
+for(thresh in seq(0,1, by=.025)) {
+  tmp<-ad%>%
+    mutate(pred_attend=ifelse(predict(mLM)>thresh, 1,0))%>%
+    group_by(yield)%>%
+    mutate(total_attend=n())%>%
+    group_by(yield, pred_attend, total_attend)%>%
+    summarise(nStudents=n(),.groups="drop")%>%
+    mutate(proportion=nStudents/total_attend)%>%
+    mutate(threshold=thresh)
+  
+  threshRes<-threshRes%>%
+    bind_rows(tmp)
+}
+```
+
+  

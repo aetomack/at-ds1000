@@ -1,0 +1,17 @@
+---
+title: "Tomack_PS0"
+author: "Alex Tomack"
+date: "2023-01-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Problem Set 0 
+I can take notes by typing normally
+
+```{r}
+2+2
+```

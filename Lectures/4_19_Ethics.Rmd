@@ -1,0 +1,18 @@
+---
+title: "4_19_Ethics"
+author: "Alex Tomack"
+date: "2023-04-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+require(tidytext)
+
+tweet_words<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/8_Clustering_NLP/data/Trump_tweet_words.Rds?raw=true")
+nrc<-get_sentiments("nrc")
+```

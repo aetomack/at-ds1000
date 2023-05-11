@@ -1,0 +1,113 @@
+# 1/23-- Intro to R, Part 3: Visualization
+
+## Agenda
+
+- Took Quiz 4. 
+
+- First PSet will be posted today, fill in the functions according to the comments and respond to questions. **Due Midnight on Friday.**
+
+## Lecture
+
+**Opening data directly from internet**
+```{r}
+library(tidyverse)
+## go to file location in GitHub, copy the link to the file
+
+df<-read_rds('https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/2_Intro_to_R/data/sc_debt.Rds?raw=true') ##read_rds is different from readRDS. The latter is from base R, while the former is from tidyverse.
+```
+
+Remember the two camps of data science:
+
+- Research and Prediction Camps
+  - Research question: How might the admissions and SAT scores be related?
+    - Theory: Admissions and SAT score should be negatively related. How do we test? **summarise() + filter()** 
+    
+```{r}
+df %>% # Filters schools that have lower than 10% acceptance rates, then look inside the subgroup and find avg SAT 
+  filter(adm_rate <0.1) %>%
+  summarise(mean_sat=mean(sat_avg, na.rm=T)) 
+```
+
+```{r}
+df %>% ## filters schools that are between 10 and 20% acceptance rate, then look inside subgroup and find avg SAT
+  filter(adm_rate > 0.1 & adm_rate <0.2) %>%
+  summarise(mean_sat=mean(sat_avg, na.rm=T))
+```
+
+Summmarise() + group_by()
+```{r}
+df %>% # arrange by the binary values of selectivity (0,1), then get their avg sat.
+  group_by(selective) %>%
+  summarise(mean_sat = mean(sat_avg, na.rm=T))
+```
+
+
+## Plotting Data
+
+- Visualization in R uses ggplot
+  - inputs aes(x, y, ...) 
+- Theory: selective schools choose higher scoring students 
+  - admissions rate goes on x, sat_avg goes on y
+  
+```{r}
+df %>%
+  ggplot(aes(x=adm_rate, y=sat_avg)) +
+  geom_point() +
+  geom_smooth(method="lm", se=F)
+```
+
+RQ: How might future earnings and SAT scores be related?
+
+- Theory: SATs measure student ability
+
+- Theory: Student ability is valued by the labor market
+
+- Theory: firms pay more for students with higher SAT scores
+
+- Hypothesis: earnings and SAT score should be generally positive
+
+- Not be the case since SAT and earnings are caused by student ability or by socioeconomic position 
+
+Variable assignment:
+
+- x, predictor: avg_sat score
+
+- y, predicted: earnings
+
+```{r}
+df %>% 
+  ggplot(aes(x=sat_avg, y=md_earn_wne_p6)) +
+  geom_point() +
+  geom_smooth(method="lm", se=F)
+```
+```{r}
+# What are the outliers?
+
+df %>% # creates a new variable "outlier"
+  mutate(outlier=ifelse(md_earn_wne_p6>100000,
+                        instnm, # what is outputted given the condition 
+                        NA)) %>%# What happens otherwise %>%
+  ggplot(aes(x = sat_avg,y = md_earn_wne_p6,
+             label = outlier)) +
+  geom_point() + 
+  geom_text()
+```
+
+## Categorical data
+
+- What if we wanted to see which state has the most selective schools?
+
+- Use group_by() and summarise()
+
+```{r}
+df %>% 
+  group_by(stabbr) %>%
+  summarise(adm_avg=mean(adm_rate,na.rm=T))%>%
+  ggplot(aes(x=reorder(stabbr, adm_avg),
+             y=adm_avg))+
+  geom_bar(stat='identity') +#plot what I already gave you
+  labs(title="Average Admissions by State",
+       y="Admissions Rate",
+       x= "State")
+
+```

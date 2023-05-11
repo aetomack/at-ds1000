@@ -1,0 +1,110 @@
+---
+title: "4_10"
+author: "Alex Tomack"
+date: "2023-04-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+tweet_words<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/8_Clustering_NLP/data/Trump_tweet_words.Rds?raw=true")
+tweet_words<-tweet_words%>%
+  mutate(PostPresident=Tweeting.date>as.Date("2016-11-06"))
+```
+
+NLP Definitions:
+
+1. Word/Term: The core unit of itnerest 
+  - Often pre-processed to remove "stop words" and to "stem" the words
+  - "Stop word": an uniteresting, commonly used word
+  - "Stem/ Lemmatize": The core component of a word that contains its meaning (eat, ate, eaten-> eat)
+2. Document: A collection of words with a singe purpose/idea (tweet, essay, book, chapter, etc.)
+3. Corpus: A collection of documents
+4. BOW: Bag-of-words. Convert a document into a count of how many times words appear
+5. DTM: Document-term-matrix. A dataset where rows are documents, columns are words, and the values are the counts from BOW.
+
+What does trump tweet about?
+```{r}
+counts<-tweet_words%>%
+  count(word)
+counts%>%
+  arrange(desc(n))
+```
+Why does his name show up so much? 
+  - He owns a lot of businesses-- promotes his shit before he becomes president.
+  
+Document Term Matrix 
+```{r}
+dtm<-tweet_words%>%
+  count(document, word)
+
+
+# define day as documetn
+dtm<-tweet_words%>%
+  count(Tweeting.date, word)%>%
+  group_by(word)%>%
+  mutate(tot_n=n())%>%
+  ungroup()
+
+#drop words that barely appear
+dtm<-dtm%>%
+  filter(tot_n>20)
+```
+
+Analyzing BOW
+  - We want to find words which are unique-- used frequently in one doc but not in any others
+```{r}
+require(tm)
+require(tidytext)
+dtm.tfidf<-bind_tf_idf(tbl=dtm, term=word, document=Tweeting.date, n=n)
+dtm.tdidf
+```
+
+How to summarize? K-means clustering!
+```{r}
+castdtm<-cast_dtm(data=dtm.tfidf, document=Tweeting.date, term=word, value=tf_idf)
+
+set.seed(42)
+km_out<-kmeans(castdtm, center=50, nstart=5)
+
+tidy(km_out)
+
+km_out_tidy<-tidy(km_out)%>%
+  gather(word, mean_tfidf, -size, -cluster, -withinss)%>%
+  mutate(mean_tfidf=as.numeric(mean_tfidf))
+
+# top five clusters
+km_out_tidy%>%
+  arrange(desc(size))
+```
+
+Visualization
+```{r}
+km_out_tidy%>%
+  filter(cluster %in% 1:9)%>%
+  group_by(cluster)%>%
+  arrange(desc(mean_tfidf))%>%
+  slice(1:10)%>%
+  ggplot(aes(x=mean_tfidf, y=reorder(word,mean_tfidf)))+
+  geom_bar(stat="identity")+
+  facet_wrap(~cluster, scales='free')
+```
+
+Choosing the optimal number of clusters with an elbow plot
+```{r}
+km_out<-kmeans(castdtm, center=50, nstart=5)
+km_out$tot.withinss
+
+elbow_plot<-NULL #instantiate empty object to save results
+for(i in c(2,5,10,30,50,100,200,500)){ # loop over different choices of k (Clusters, topics we're modeling)
+  km_out<-kmeans(castdtm, center=i, nstart=5) #calculate k-means with number of clusters = to i
+  elbow_plot<-elbow_plot%>% #add to the elbow_plot empty object
+    bind_rows(data.frame(toWSS=km_out$tot.withinss,
+              clusters=i))
+}
+
+```

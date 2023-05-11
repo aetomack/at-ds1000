@@ -1,0 +1,138 @@
+# Data Wrangling, 1/30
+
+```{r}
+rm(list=ls())
+```
+
+**What is data wrangling?**
+
+- Where most of the work is done. Getting data ready for analysis
+- Using excel is a mistake! It tries to make life easier by autocorrecting things. It will also convert things that look like dates INTO dates. 
+  - REAL reason, it doesnt allow for replication
+  
+Three principles of avoiding data wrangling mistakes
+
+- Replicability
+- Understandability 
+- Robustness
+
+Big picture
+
+- Load raw data into an RStudio script 
+- Wrangle the data within the script
+
+Why R?
+
+- Checks all three principles 
+- DON'T save workspace image
+  - Always want a cleared workspace
+  - Not clear workspace? type and run rm(list=ls())
+    - Bisbee puts this rm(list=ls()) at the top of his code all the time. Just to protect in case you saved workspace. 
+- R Scripts or RMD scripts should be:
+  - Single purpose (but definitions can vary)
+    - Like this file, it's organized around a single purpose (notes for this day)
+  - Well-commented (make it easy for anyone to understand)
+  - Iteratively built (constant bug checking)
+
+New folder-- Output
+```{r}
+require(tidyverse)
+MI_raw<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/3_Data_Wrangling/data/MI2020_ExitPoll.rds?raw=true")
+
+```
+The process:
+
+- Step 1: Look at the data
+  - Methods:    
+    - 1. Just look at the data. 
+    - 2. Glimpse()
+    - 3. Summary()
+  - Types of Continuous variables
+    - db1: numeric data stored with great precision. Can be manipulated with math
+    - int: numeric data stored as integers. R typically treats db1 and int as interchangeable
+  - Types of Categorical variables 
+    - chr: string data, consisting of letters (and/or numbers). Cannot be manipulated with math 
+    - fct: string data that is stored with a number. Typically used to define group membership.
+  - Mixtures
+    - lbl
+  - Missingness
+    - Two ways to indicate an observation is missing data 
+      - 1. NA code
+      - 2. Some bespoke code for "unit non-response" (often 9, or 99, or a large value ending in 9)
+    ### looking for NA data USE SUMMARY
+    ```{r}
+    summary(MI_raw %>% select(LALVOTERID, SEX, AGE10, PARTYID, LGBT, QLT20))
+    ```
+    ### Looking for unit non-response USE COUNT
+    ```{r}
+    MI_raw %>%
+      count(PARTYID) # have to knit to see the labels on each variable
+    
+    MI_raw %>%
+      count(AGE10)
+    ```
+    - Reintroducing ggplot!
+      - Only interested in single variable 
+    - For now, need:
+      - 1 aes
+      - 2. geom_hist() or geom_bar()
+    ```{r}
+      MI_raw %>% 
+      ggplot(aes(x=AGE10)) +
+      geom_bar()
+    ```
+- Step 2: Wrangle the data
+  - Why wrangle data?
+```{r}
+#what does 8.48 tell us? Half in category 8 and 9. BUT THIS IS INFLATED! We didn't remove the 99s in our data set. 
+MI_raw %>%
+  summarise(avg_age=mean(AGE10, na.rm=T)) 
+
+#replace 99 with NA
+MI_raw %>%
+  mutate(AGE10_clean = ifelse(AGE10==99, 
+                              NA, 
+                              AGE10)) %>%
+  select(AGE10, AGE10_clean)
+
+# to assign the object so it actually exists, 
+MI_raw <- MI_raw %>%
+  mutate(AGE10_clean = ifelse(AGE10==99, 
+                              NA, 
+                              AGE10))
+```
+  - Converting to chr using Haven
+    - There is a helpful package called haven which will extract these labels as factors 
+    - install it but dont require it
+  
+```{r}
+MI_raw %>%
+  mutate(AGE10_clean_haven=haven::as_factor(AGE10)) %>%
+  select(matches('AGE10'))
+
+#then convert to character type
+MI_raw %>%
+  mutate(AGE10_chr = as.character(haven::as_factor(AGE10)))%>%
+  select(matches('AGE10'))
+```
+
+## Plotting with labels
+
+```{r}
+MI_raw <- MI_raw %>%
+  mutate(AGE10_chr= as.character(haven::as_factor(AGE10)))
+
+MI_raw %>%
+  ggplot(aes(x=AGE10_chr)) +
+  geom_bar()
+```
+- Step 3: Analyze the data
+
+Goals:
+
+- 1. Understand variable types
+  - Continuous, categorical
+- 2. Identify missingness: either NA or unit non-response 
+  - Unit non-response: observations who didn't provide information 
+- 3. Identify skew or other phenomena that require wrangling
+

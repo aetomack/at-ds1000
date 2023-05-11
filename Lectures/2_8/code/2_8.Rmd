@@ -1,0 +1,133 @@
+---
+title: "2_8 Lecture"
+author: "Alex Tomack"
+date: "2023-02-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+poll<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/Pres2020_PV.Rds?raw=true")
+  
+poll %>%
+  select(Trump,Biden)
+
+poll<-poll%>%
+  mutate(Trump=Trump/100,
+         Biden=Biden/100,
+         margin=round(Biden-Trump,2)) 
+```
+Why do Polls under-predict Trump more than Biden?
+
+- Unrepresentative sample (how were respondents contacted?)
+- Small samples
+- Shy Trump voters 
+- Timing (closer to election)
+
+Theory #1: Does the "mode" of the survey  matter?
+
+- I.e., if you only call people on landlines, who do you reach?
+- And how might they differ form the general population
+- Assumption #1: Younger people do not use landlines, meaning that surveys which rely on random digit dialing (RDD) will get disproportionately older respondents.
+- Assumption #2: younger voters are more progressive, making them less likely to support Trump.
+- Theory: Surveys that use RDD will find more support for Trump than Biden
+
+How do we analyze this?
+
+- plot the Biden-Trump vote margin by mode type
+
+Soft Rules of Visualization 
+
+- Variable type informs visualization 
+
+1.) Univariate
+  - Categorical data: geom_bar()
+  - Continuous data: geom_histogram() or geom_density()
+
+2.) Bivariate
+  - Categorical x Categorical: geom_bar()
+  - Binary x Continuous: geom_histogram() or geom_density()
+  - Categorical x continuous: geom_boxplot() or geom_violin()
+  - Two continuous: geom_point()
+  
+- For now, just focus on IRV/Online versus Live Phone - RDD
+- Since margin is a continuous variable, use geom_histogram
+
+# Bivaiate vis: binary x continuous
+```{r}
+poll %>%
+  filter(Mode =="IVR/Online" | Mode=="Live phone - RDD") %>%
+  ggplot(aes(x=margin, color=Mode))+
+  geom_density()
+```
+# Bivariate vis: categorical x continuous
+```{r}
+poll %>%
+  filter(Mode !="IVR" & Mode!="Online/Text" & Mode != "Phone - unknown") %>%
+  ggplot(aes(x=margin))+
+  geom_boxplot()
+```
+#bivariate vis: cont x cont 3rd method besides alpha and jitter 
+```{r}
+poll%>%
+  ggplot(aes(x=Biden, y=Trump)) +
+ # geom_point(alpha=0.3)+ # approach 1 to revealing multiple data at same point.  alpha shows how many polls at the same point. 
+ # geom_jitter()+ # approach 2, shifts the points a tiny bit so we can see each poll individually
+  geom_point()+
+  geom_smooth(method="lm")
+```
+#bivariate vis: cont x cont 
+```{r}
+poll%>%
+  count(Biden, Trump) %>%
+  ggplot(aes(x=Biden, y=Trump, size=n)) +
+  geom_point()+
+  geom_smooth(method="lm")
+```
+Theory 
+ 
+- These reslts indicate that polls whcih rpedict greater support for Biden also predict greater support for Trump
+  - Is this consistent with the theory?
+  - Recall that Biden-biased polls should underpredict Trump support and overpredict Biden support
+  - in the data, this would suggest a negative relationship
+  - but we find a positive relationship
+- Inconsistent with the theory, but raises another question 
+- Why do polls that underpredict support for Biden also underpredct support for Trump?
+  - Third party bias? Polls bias against 3rd party candidates
+  - Timing of poll? Fewer uncertain responses closer to election.
+  
+To test the timing of polls theory, let's look at how predicted support varies over time 
+```{r}
+poll %>%
+  select(StartDate, EndDate, DaysinField) 
+```
+
+Working with dates-- as.Date() dunction converts characters to 'date' class variables
+```{r}
+d1<-as.Date("02/08/2023", format="%m/%d/%Y")
+midterm <-as.Date("03/08/2023", format="%m/%d/%Y")
+midterm-d1
+
+poll<-poll %>% 
+  mutate(StartDate=as.Date(StartDate, format="%m/%d/%Y"),
+         EndDate = as.Date(EndDate, format="%m/%d/%Y"))
+
+poll %>%
+  ggplot(aes(x=StartDate, y=margin))+
+  geom_point() +
+  geom_smooth(method="lm")
+```
+
+
+Look at Each point individually
+
+```{r}
+poll %>%
+  ggplot() +
+  geom_point(aes(x=StartDate, y=Biden),color='Blue') +
+  geom_point(aes(x=StartDate, y=Trump), color='Red')
+```

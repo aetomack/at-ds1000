@@ -1,0 +1,27 @@
+---
+title: "4_24_Review"
+author: "Alex Tomack"
+date: "2023-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+covidData<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/9_Advanced_Topics/data/covid_prepped.Rds?raw=true")
+
+m1<-lm(formula=log(trump.votes+1)~log(covid.deaths+1), covidData)
+summary(m1)
+
+# the outcome is the percent of supporters of trump in a county. Y is normalized, (max is 100%), but the population of the x isn't normalized (deaths by county are more in bigger counties)
+# so we're finding a negative relationship which isn't really representative of reality
+m2<-lm(formula=perc.trump.2020~covid.deaths, covidData)
+summary(m2)
+
+# to remove this spurrious relationship-- instead of looking at raw quantity of deaths, look at proporion of deaths per county
+mRate<-lm(formula=perc.trump.2020~covid.deaths, covidData%>%
+            mutate(perc.covid.deaths=covid.deaths/population))
+```

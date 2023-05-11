@@ -1,0 +1,202 @@
+---
+title: "Univariate Analysis"
+subtitle: "Lecture Notes 2/1/23"
+author: "Tomack"
+institute: "Vanderbilt University"
+date: "2/1/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,error=TRUE,warning = FALSE,message = FALSE)
+```
+Scope
+
+- How to analyze a single variable
+- Scientifically, theories contain more than one variable?
+  - Relationship between education and wage; gender and voting
+- How can we put together a theory with a single variable i.e. no context??
+
+Still, uni analysis is essential
+
+- Informs how we wrangle data (practical)
+- Allows us to generate hypotheses (scientific)
+
+```{r}
+#Load data on players in the 2018-2019 season. 
+require(tidyverse)
+nba <- read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/nba_players_2018.Rds?raw=true")
+```
+
+
+Thinking like a scientist 
+
+- What questions do we have? What hypotheses might we want answered?
+- Take a look at the pts variable 
+  - what does this measure? What is its variable type?
+```{r}
+glimpse(nba%>% select(pts)) # stored as a double (dbl), so continuous variable. 
+```
+
+But how do we actually analyze a single variable?
+
+- summarise the mean, median
+
+```{r}
+nba %>%
+  summarise(mean_pts=mean(pts, na.rm=T),
+            med_pts=median(pts, na.rm=T)) #mean>med, right-skewed
+```
+
+OR
+
+- summary(nba$pts)
+
+```{r}
+summary(nba$pts) # $ JUST selects that one column 
+```
+In English:
+
+- There is at laest one player who didnt score at all 
+- At least one player scored 2818 points
+- 25% of players scored less than 115 points
+- What do decimals mean?
+  - you can't score half a point in bbal.. it's just the nature of the math. 
+  
+Visualization 
+
+- We could try to remember the statements, OR we could graph them!
+
+```{r}
+# Univariate visualization using geom_hist(). ONLY variable will be on the x axis
+
+nba %>%
+  ggplot(aes(x=pts))+
+  geom_histogram(bins=150) +#default bins = 30, can change using bins=...
+  geom_vline(xintercept=quantile(nba$pts,c(.25, .5, .75))) # draw a vertical line that intercepts the x-axis using the quantile function-- look in the nba data set and take the pts variable and plot the data from pts AT the first quartile, median, and 3rd quartile
+```
+```{r}
+quantile(x=nba$pts, .27) # takes the value of the variable at the percenctile given
+#or
+quantile(x=nba$pts,c(0.25, 0.5, 0.75)) #take the values of the variable at the vector of percentiles given
+
+nba%>%
+  ggplot(aes(x=pts))+
+  geom_histogram()+
+  geom_vline(xintercept=750) # just showing that the 750 in xintercept=750 can be interchanged with a function like quantile(x=nba$pts,c(0.25, 0.5, 0.75)) 
+```
+These plots are BAD though! If someone were to walk in and look at the plot, could they tell what it means?
+
+- Need to assign labels and titles. What does pts mean? What is count *counting*??
+
+Labs() function allows us to do this
+```{r}
+nba %>%
+  ggplot(aes(x=pts)) +
+  geom_histogram() +
+  geom_vline(xintercept=quantile(nba$pts, c(.25,.5,.75)))+
+  labs(title = "Total Points Scored",
+       subtitle="NBA Players 2018-2019 Season",
+       x = "Total Points Scored",
+       y = "Number of players") #adding labels
+```
+
+Visualization informs science
+
+- Looking at the data can help generate research questions, theories, and hypotheses
+  - Question: Why do some players not score any points?
+  - Theory: Players need minutes to score points
+  - Hypothesis: The number of points a player scores should be positively correlated with their minutes
+  
+```{r}
+summary(nba$minutes)
+```
+
+Lets plot minutes 
+
+```{r}
+nba %>%
+  ggplot(aes(x=minutes)) +
+  geom_histogram() +
+  geom_vline(xintercept=quantile(nba$minutes, c(.25, .5, .75)))+
+  labs(title=" Minutes by PLayers",
+       subtitle="2018-2019 NBA Season",
+       x = "minutes played",
+       y = "Number of Players")
+
+```
+
+Other Variables
+
+- Thus far, pts and minutes are both doubles (dbl)
+- What about other variable types like categorical?
+  - Categorical variables are:
+    - Mutually exclusive: Observations can only be in one category 
+    - Exhaustive: Every observation is assigned to a category
+
+Categorical Variables
+
+- Categorical variables can be divided into the followign sub-types 
+- **Ordered**: There is a sensible order (i.e. education)
+  - Should be arranged intuitively (i.e. LTHS, HS degree, Some college)
+  - To summarize: calculate the proportions for each category
+  - If there are too many categories, use the mode 
+  - To visualize, **geom_bar()**
+  - **Ordered-Binary** is a sub type
+    - Arranged in intuitive order (is not a rookie/is rookie)
+- **Unordered**: No sensible order of categories (i.e. major degree)
+  - Order by most commonly occurring categories
+  - **Unordered Binary**: No sensible order and only two levels (i.e. edible)
+    - To summarize, convert to a [0,1] and find mean 
+    - Visualize with geom_bar()
+- Meaningfully different from continuous variables
+- In general, continuous uses geom_histogram or geom_density, categorical uses geom_bar
+- fct is a class that is unique to R
+  - meant for ordered categorical variables
+  - fct stores the order and assigns a numeric value + a definition 
+  - Most of the time, better to store as a chr (but not always)
+  
+Variables
+- R may store categorical variables as chr, fct, lgl, or even dbl 
+- continuous variables typically stored as int or dbl
+- Up to the data scientist to determine 
+  - simple process: 
+    1. look at a few observations and make a guess about the variable type
+    2. create a plot or table based on that guess
+    3. if the result is sensible, proceed. Otherwise, go back to #1
+    
+    
+In Practice
+
+- Let's look at field goals (fgm)
+- What type of variable should this be?
+  - Technically not continuous, since it can't be divided into fractions, but we don't care.
+  - We just want to make sure it is not a categorical variable 
+The Process:
+- Step 1: Look
+```{r}
+summary(nba$fgm) # we looked, so lets try plotting
+
+nba %>%
+  ggplot(aes(x=fgm))+
+  geom_histogram(bins=100) #geom histogram since continuous, BUT can also do a DENSITY!
+
+nba%>%
+  ggplot(aes(x=fgm))+
+  geom_density() #draws the same shape, just depends on the type of visualization
+```
+Step 3: Evaluate
+- blah blah blah whatever we conclude 
+
+Other variables: Use the process
+
+```{r}
+nba%>%
+  select(slugTeam) #clearly a categorical variable
+
+nba %>%
+  ggplot(aes(x=slugTeam))+
+  geom_bar()
+```
+
+  

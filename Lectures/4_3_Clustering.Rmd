@@ -1,0 +1,38 @@
+---
+title: "4_3_Clustering"
+author: "Alex Tomack"
+date: "2023-04-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clustering
+
+- No research question, no prediction goal. 
+  - Just to **learn** about the structure of data. 
+- k refers to the number of grops
+  1. Choose initial centroids at random
+  2. Assign observations to each centroid based on Euclidean distance
+  3. Calculate new centroid based on mean of each variable
+  4. Repeat until assignments stabilize
+  
+```{r}
+require(tidyverse)
+dat <- read.csv("https://raw.githubusercontent.com/jbisbee1/DS1000_S2023/main/Lectures/8_Clustering_NLP/data/H097_members.csv")
+
+glimpse(dat)
+
+# scatter
+dat%>%
+  ggplot(aes(x=nominate_dim1, y=nominate_dim2))+
+  geom_point()
+
+
+```
+
+
+
+  

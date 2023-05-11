@@ -1,0 +1,117 @@
+---
+title: "2_27 Lecture"
+author: "Alex Tomack"
+date: "2023-02-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Gross ~ Score RMSE
+```{r}
+require(tidyverse)
+mv<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/5_Regression/data/mv.Rds?raw=true")
+mv_analysis  <- mv %>%
+  mutate(gross_log = log(gross),
+         budget_log = log(budget))%>%
+  select(gross_log, budget_log, score) %>%
+  drop_na()
+
+m<- lm(formula=gross_log ~ score, 
+       data=mv_analysis)
+summary(m)
+
+
+# RMSE by CV
+
+set.seed(123)
+rmseRes<-NULL
+for(i in 1:100){
+  inds <- sample(x=1:nrow(mv_analysis),
+                 size=round(nrow(mv_analysis)*.8),
+                 replace=F)
+  
+  train<-mv_analysis%>%slice(inds)
+  test<-mv_analysis%>%slice(-inds)
+  
+  m<-lm(formula=gross_log ~ score, data=train)
+  
+  e<-resid(m) # to get errors
+  se <- e^2
+  mse<-mean(se, na.rm=T)
+  rmse<-sqrt(mse)
+  
+  rmseRes <- c(rmseRes, rmse)
+}
+
+mean(rmseRes)
+```
+Our RMSE is pretty much the same, implying that our model isn't susceptible to overfitting. 
+
+
+
+# Multivariate regression
+
+Yeeaaahhhh!
+```{r}
+m3<-lm(gross_log ~ gross_budget + score, data=mv_analysis)
+
+summary(m3)
+```
+# RMSE Combined: Method 1
+
+```{r}
+set.seed(123)
+rmseRes<- NULL
+for(i in 1:100){
+  inds<-sample(1:nrow(mv_analysis), 
+               size=round(nrow(mv_analysis)/2),
+               replace=F)
+  train<- mv_analysis%>%slice(inds)
+  test<- mv_analysis%>%slice(-inds)
+  
+  # NEW STUFF /////////////////////////////////
+  
+  mB<-lm(formula=gross_log ~ budget_log, train)
+  mS<-lm(formula=gross_log ~ score, train)
+  mC<-lm(formula=gross_log~ budget_log + score, train)
+  
+  rmseTmp<-test %>%
+    mutate(pB = predict(mB, newdata=test), # budget
+           pS = predict(mS, newdata=test), # score
+           pC = predict(mC, newdata=test))%>% #combined
+    summarise(rmseB = sqrt(mean((gross_log - pB)^2)),
+              rmseS = sqrt(mean((gross_log - pS)^2)),
+              rmseC = sqrt(mean((gross_log - pC)^2)))
+  
+  rmseRes<-rmseRes %>% bind_rows(rmseTmp)
+}
+
+rmseRes %>%
+  summarise_all(mean) #takes a function and applies to every column in the data
+```
+
+# Visualize Result
+```{r}
+rmseRes%>%
+  gather(model, rmse) %>%# instead of three columns, two columns. Wide to long data
+  ggplot(aes(x=rmse, y= reorder(model, rmse)))+
+  geom_violin()
+```
+# Categorical Predictor-- Bechdel Test 
+
+- Do movies that pass the Bechdel Test make more money?
+  - Theory: women are ~50% of the population. Movies that pass the test are more appealing to women. 
+  - Hypothesis: Movies that pass the test make more money. 
+  
+When we run a regression, we find the a correlation that indicates movies that fail the test make more money. 
+  
+  - REMINDER correlation does not equal causation.
+  - What might explain this pattern?
+  - Budgets in a sexist Hollywood!
+  - Movies that fail the test get larger budgets 
+  - Budgets are positively associated with gross
+- We want to control for the budget (analyzing two movies with the same budget) 
+  - When we do this and run a multivariate regression, we see a negative coefficient on the bechdel_factorFail predictor for gross earnings. 

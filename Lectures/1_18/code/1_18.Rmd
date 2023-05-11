@@ -1,0 +1,13 @@
+```{r}
+require(tidyverse)
+
+df %>% 
+  filter(stabbr == "TX") %>%
+  summarise(mean(sat_avg, na.rm=T))
+```
+
+```{r}
+df %>%
+  filter(stabbr == "TN") %>%
+  select(instnm, sat_avg)
+```

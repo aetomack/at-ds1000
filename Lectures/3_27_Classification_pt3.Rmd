@@ -1,0 +1,155 @@
+---
+title: "Untitled"
+author: "3_27_Classification_pt3"
+date: "2023-03-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Linear vs Logistic regression 
+- Logistic is better for categorical variables 
+- Linear is better for continuous variables
+- Slides show how logit, with categorical variables, is able to restrict the model to describe only sensical values-- applying bounds to what the model can predict. 
+  - Linear CAN work, but logit is so much better. 
+  
+Classification workflow
+1. Train: mLG<- glm(formula, data, family=binomial(link="logit"))
+2. Predict: data#predY<-predict(mLG, type="response")
+3. Evaluate: roc_auc(data, truth, estimate)
+  - Area under the curve
+  - Evaluation stage is actually REALLY deep 
+    - CLassify observations based on threshold: ifelse(predY>.5,1,0)
+    - Calculate accuracy by group across threasholds
+    - Sensitivity and speificity 
+    - Should be estimated via cross-val to avoid overfitting
+    
+What do we get from the classification workflow? 
+```{r}
+require(tidyverse)
+require(tidymodels)
+require(modelr)
+
+ad<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/7_Classification/data/admit_data.rds?raw=true")
+```
+
+# Run logit
+```{r, warning=FALSE}
+mLG<-glm(formula=yield~sat+legacy+visit+registered+sent_scores+income+gpa+distance+net_price, data=ad, family=binomial(link="logit"))
+
+#evaluate model 
+toEval<-ad%>%
+  mutate(prob_attend=predict(mLG, type="response"),
+         yield=factor(yield, levels=c("1","0")))
+
+roc_auc(data=toEval, truth="yield", estimate="prob_attend")
+
+# cross validtation to protect against overfitting
+set.seed(123)
+cvRes<-NULL
+for(i in 1:100){
+  inds<-sample(1:nrow(ad), size=round(nrow(ad)*.8), replace=F) #select random sample of row numbers
+  train<-ad%>%slice(inds) # using random sample, dividie into training set
+  test<-ad%>%slice(-inds)# divide into test set
+  
+  mTmp<-mLG<-glm(formula=yield~sat+legacy+visit+registered+sent_scores+income+gpa+distance+net_price, data=train, family=binomial(link="logit")) # logit regression 
+  
+  #evaluateion step-- replaced with test data, and specified with mTmp
+  toEval<-test%>% # prep data for AUC calculation
+  mutate(prob_attend=predict(mTmp, newdata=test, type="response"),
+         yield=factor(yield, levels=c("1","0")))
+
+tmpAUC<-roc_auc(data=toEval, truth="yield", estimate="prob_attend") # calculate AUC
+
+cvRes<-cvRes%>% # append to cvRes object
+  bind_rows(tmpAUC%>%
+              mutate(cvIndicator=i))
+
+}
+
+mean(cvRes$.estimate)
+```
+
+This algorithm is badass. Helps us make decisions
+  - Goals: increase SAT to 1300, admit 200 more students with incomes under 50k
+  - constaints: maintain total reve of at least 30m, maintain entering class size of at least 1466
+  - Tools: incentive students of these characteristics with need-based and merit-based aid
+      - Ethical? Slippery slope. Providing an incentive to attract certain students whether or not the school is a good fit.
+    - Effort for visit and registration 
+    - Other targeting? Ethics??
+    
+    
+Using the algorithm
+
+1. **Counterfactuals** for specific types of students
+  - What is the probability a given student will attend?
+  - data_grid() function from modelr package can help
+2. **Consulting ** for changes in policy
+  - If we increase price, what will happen to attendance?
+  - Just predict on the full data
+
+# Counterfactuals with data_grid()
+```{r}
+require(modelr)
+hypo_data<-ad%>%
+  data_grid(legacy=0, 
+            visit=1, 
+            registered=1, 
+            sent_scores=1,
+            sat=c(1100, 1400), # augmented to include students that are otherwise identical except for sat score
+            income=95000,
+            gpa=3.9,
+            distance=1, 
+            net_price=c(6875,25000)) # we found that they are already 96% likely to attend. What if we didn't give them as much money?
+
+predict(mLG, newdata=hypo_data, type="response") # based on the characteristics specified in the data_grid, what is the likelihood such a student will attend based on our logit model?
+# with augmented net_price, we see student falls from 96% likely to attend, it falls to 90%. 
+```
+
+# 2. Consulting on policies
+
+- Reduce `net_price` by $5,000 for students students with SAT scores >= 1300
+```{r}
+# create hypothetical data with 1300+ students discounted
+hypo_data<-ad %>%
+  mutate(net_price=ifelse(sat>=1300, net_price-5000, net_price+5000))
+
+# predict probability and attendance based on model
+hypo_data<-hypo_data%>%
+  mutate(prob_attend = predict(mLG, newdata=hypo_data, type="response"))%>%
+  mutate(pred_attend=ifelse(prob_attend>.5, 1, 0))
+
+# evaluate whether we achieved our goal
+hypo_data%>%
+  filter(pred_attend==1)%>%
+  summarise(sat_avg=mean(sat, na.rm=T),
+            tot_rev=sum(net_price, na.rm=T),
+            tot_student=n())
+
+#EC on Pset-- instead of manually typing in values, put it in a loop. 
+hypoRes<-NULL
+for(discount in c(1000, 5000, 10000, 20000)){
+  hypo_data<-ad %>%
+  mutate(net_price=ifelse(sat>=1300, net_price-discount, net_price+discount))
+
+# predict probability and attendance based on model
+hypo_data<-hypo_data%>%
+  mutate(prob_attend = predict(mLG, newdata=hypo_data, type="response"))%>%
+  mutate(pred_attend=ifelse(prob_attend>.5, 1, 0))
+
+# evaluate whether we achieved our goal
+tmp<-hypo_data%>%
+  filter(pred_attend==1)%>%
+  summarise(sat_avg=mean(sat, na.rm=T),
+            tot_rev=sum(net_price, na.rm=T),
+            tot_student=n())
+
+hypoRes <- hypoRes%>%
+  bind_rows(tmp%>%
+              mutate(discount=discount))
+}
+
+hypoRes
+```

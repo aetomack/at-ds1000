@@ -1,0 +1,245 @@
+---
+title: "2_22 Lecture"
+author: "Alex Tomack"
+date: "2023-02-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# How do we evaluate regression results?
+
+1. Look with univariate and multivariate
+2. Calculate the root mean squared error (RMSE)
+
+# Opening Movies data 
+```{r}
+require(tidyverse)
+mv<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/5_Regression/data/mv.Rds?raw=true")
+```
+
+# follow process-- LOOK
+
+```{r}
+glimpse(mv)
+```
+
+# Research Question: Hollywood Finances
+
+- Theory: The more a movie costs, the more it should make. 
+  - If not, Hollywood goes out of business.
+- Hypothesis: earnings (gross) and costs (budget) should be **positively correlated**
+  - X: Budget
+  - Y: Gross
+  
+#Follow process-- LOOK at our variables
+```{r}
+summary(mv%>%select(gross, budget)) # lots of missingness in our data-- will have to run drop_na()
+
+mv %>%
+  drop_na(gross, budget)%>%
+  select(gross, budget) %>% glimpse()
+```
+# Univariate Visualization
+```{r}
+# because continuous, use density or histogram. 
+mv %>%
+  select(gross, budget)%>%
+  drop_na() %>%
+  gather(metric, dollars)%>% #transforms wide data into long data.
+  ggplot(aes(x=dollars, color=metric))+
+  geom_density()
+```
+Oof so our above visualization is pretty rough. These variables are incredibly skewed.
+
+# Log and Skew
+
+- Univariate visualizations highlights the skew in both measures. 
+- we need to log both variables to resolve this.
+
+```{r}
+mv<-mv%>%
+  mutate(gross_log= log(gross),
+         budget_log=log(budget))
+
+# same analysis as above, just with logged data
+mv %>%
+  select(gross_log, budget_log)%>%
+  drop_na() %>%
+  gather(metric, dollars)%>% #transforms wide data into long data.
+  ggplot(aes(x=dollars, color=metric))+
+  geom_density()
+```
+
+# Conditional analysis
+```{r}
+mv %>%
+  ggplot(aes(x=budget_log, y=gross_log))+
+  geom_point() +
+  geom_smooth(method="lm", se=F)
+```
+
+# Regression
+```{r}
+model_gross_budget<-lm(formula=gross_log ~ budget_log, 
+                       data=mv)
+summary(model_gross_budget)# 1% increase in budget -> 0.96% budget increase in gross
+```
+
+# Interpreting with Logs
+
+- for the alpha coefficient, when the budget is #1, the movie makes $3.53
+```{r}
+exp(1.26107)
+```
+
+- For the beta coefficient, 
+  - log-x: 1 unit change in x -> (exp(b)-1)*100% change in Y
+  - y-log: 1% increase in X -> b/100 unit change in Y
+  - log-log: 1% increase in x -> b% change in Y
+  
+# Evaluation 
+  
+- Every regression line makes mistakes
+  - If they didnt, they wouldnt be great at reducing complexity
+- How bad do ours look?
+  - How do we look?
+- Are there patterns to the mistakes?
+  - We overestimate gross for movies that cost between $1m and 100m
+  - We underestimate the gross for movies that cost lower than $100k
+- Why?
+  - alpha and beta are chosen to minimize mistakes
+    - mistakes are captured in the error term
+    - we can apply the PROCESS to these
+    
+# Extracting the errors
+```{r}
+mv_analysis<- mv %>% drop_na(gross_log, budget_log)
+
+m<-lm(formula=gross_log ~ budget_log, 
+       data=mv_analysis)
+summary(m)
+
+# Predicted Values
+mv_analysis$predictions<-predict(m)
+
+mv_analysis$errors<-mv_analysis$gross_log-mv_analysis$predictions
+
+mv_analysis%>%
+  select(errors, predictions, gross_log)
+
+# Univariate visualization of the errors
+mv_analysis%>%
+  ggplot(aes(x=errors))+
+  geom_histogram()
+
+```
+
+# Conditional Analysis
+We also want to do a multivariate analysis of error and budget
+
+```{r}
+mv_analysis %>%
+  ggplot(aes(x=budget, y=errors))+
+  geom_point()+geom_hline(yintercept=0, linetype="dashed")+
+  scale_x_log10(label=scales::dollar) + geom_smooth() #ideally we would see a straight line at zero 
+```
+
+# RMSE
+- Error: actual outcome (Yi) - predicted outcome (Y-hat)
+- Squared: Makes them all positive, exaggerates the presence of larger errors
+- Mean: average these squared errors
+- Root: unexaggerate the errors 
+
+```{r}
+e<- mv_analysis$gross_log-mv_analysis$predictions
+se<-e^2
+mse<-mean(se)
+rmse<-sqrt(mse) #this is still in logged terms, though. 
+```
+
+To evaluate, apply to a model. 
+
+# Predicting with uncertainty
+
+- Say we're talking about investors about a new movie that costs $10m
+```{r}
+summary(m)$coefficients
+```
+Y-hat = alpha + beta*X
+  - alpha = 1.26
+  - beta= 0.96
+  - x= 10m
+```{r}
+pred<-1.26+0.96*log(10000000)
+scales::dollar(exp(pred))
+
+# lower bound
+
+scales::dollar(exp(pred-rmse))
+
+#Upper bound
+scales::dollar(exp(pred+rmse))
+```
+
+# Cross Validation
+- We ran a model on the full data and calculated the RMSE
+- But this approach risks **overfitting**
+  - Overfitting is when we get a model that happens to do well on our specific data, but isnt actually that useful for predicting elsewhere. 
+- Theory: Why care about external validity?
+  - Similar to bootstrapping
+  
+```{r}
+# First step-- get a random set of row numbers
+inds <- sample(x=1:nrow(mv_analysis),
+               size=round(nrow(mv_analysis)/2), 
+               replace=F)
+
+# create training and test sets
+train<- mv_analysis %>% slice(inds)
+test<- mv_analysis %>% slice(-inds)
+
+#run model 
+mTmp <-lm(gross_log~budget_log, data=train)
+summary(mTmp)
+
+# Calclulate RMSE
+test$preds <- predict(mTmp, newdata=test)
+
+e<- test$gross_log - test$preds
+se<-e^2
+mse<-mean(se)
+rmse<-sqrt(mse)
+
+# put in a loop
+set.seed(123)
+rmseRes<- NULL
+for(i in 1:10) {
+  inds <- sample(x=1:nrow(mv_analysis),
+               size=round(nrow(mv_analysis)/2), 
+               replace=F)
+
+# create training and test sets
+train<- mv_analysis %>% slice(inds)
+test<- mv_analysis %>% slice(-inds)
+
+#run model 
+mTmp <-lm(gross_log~budget_log, data=train)
+summary(mTmp)
+
+# Calclulate RMSE
+test$preds <- predict(mTmp, newdata=test)
+
+e<- test$gross_log - test$preds
+se<-e^2
+mse<-mean(se)
+rmse<-sqrt(mse)
+
+rmseRes<-c(rmse, rmseRes)
+}
+
+mean(rmseRes) #this is what we'd use to explain what someone should expect
+```
+  

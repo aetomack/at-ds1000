@@ -1,0 +1,228 @@
+---
+title: "2_13"
+author: "Alex Tomack"
+date: "2023-02-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+
+nba<- read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/3_Data_Wrangling/data/nba_players_2018.Rds?raw=true")
+gms<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/game_summary.Rds?raw=true")
+```
+
+What is confidence?
+
+- In frequent stats:
+  - How often your concliusion would be correct if you were able to run the experiment many times
+  - How often your conclusion would be correct if you were able to observe the world many times
+- Research question: Are NBA players from Tennessee better at shooting free throws than players from UVA?
+
+```{r}
+glimpse(nba%>%select(org, pctFT)) # look at the types of variables we're working with
+
+summary(nba %>%select(pctFT, org)) # check how many NAs we have. 
+```
+Now that we've looked, let's do some univariate visualization
+```{r}
+# univariate of pctFT
+nba %>% 
+  ggplot(aes(x=pctFT))+
+  geom_density()
+
+# univariate of org
+nba %>%
+  count(org) %>%
+  ggplot(aes(x=n, y= reorder(org, n)))+
+  geom_bar(stat="identity")
+```
+
+Multivariate visualization 
+```{r}
+nba %>%
+  filter(org %in% c("Tennessee", "Virginia")) %>%#same as filter(org=="Tennessee" | org=="Virginia")
+  group_by(org)%>%
+  summarise(meanFT=mean(pctFT)) %>%
+  ggplot(aes(x=org, y=meanFT))+
+  geom_bar(stat="identity")
+
+#Good visualization
+nba %>%
+  filter(org %in% c("Tennessee", "Virginia")) %>%#same as filter(org=="Tennessee" | org=="Virginia")
+  ggplot(aes(x=org, y=pctFT))+
+  geom_boxplot()
+```
+Uncertainty
+
+- Are players from Tennessee better at free throws than players from UVA?
+- Populations vs samples
+- Big philosophical step back
+  - we live in a stochastic universe
+- What does better mean?
+  - Theory: An innate quality in greater abundance
+  - Prediction: If we had to bet on who scores more FTs, who do we choose?
+- If the universe is inherently stochastic, we are inherently uncertain. 
+  - How do we measure this?
+    - Run 100 experimental seasons 
+    - Record FT percentage for players from UVA and UT for each season
+    - Calculate how many times UT players have better percentage than UVA players
+  - 90 seasons out of 100-- 90% confident/certain
+  - can never be 100% confident.
+  - But, running 100 experimental seasons is impossible.
+    - What we can do, is take 1 season of basketball but sample it randomly.
+      - Bootstrap sampling
+    - Theory: By mimicking the sampling process, we can simulate a God experiemtn
+    - Practice: sample_n(size, replace)
+    
+Bootstrap Demo Step 1
+
+- One randomly sampled player via sample_n(size, replace)
+  - Size: how many samples (from 1 to all observations)
+  - replace: whether to put the sample back (true/false)
+  
+# Bootstrap Example
+```{r}
+set.seed(123)
+nba %>%
+  select(org, pctFT) %>%
+  sample_n(size=1, replace=T)
+
+# Get a real simulated season
+simSeason1<-nba %>%
+  select(org, pctFT) %>%
+  sample_n(size=nrow(nba), replace=T) # take 530 observations and put back into data set
+
+simSeason1 %>%
+  filter(org %in% c("Tennessee", "Virginia")) %>%
+  group_by(org) %>%
+  summarise(meanFT=mean(pctFT))
+```
+
+#repeating a chunk with "for()" loop
+```{r}
+bootstrap_result<- NULL #instantiating an object in memory
+for(i in 1:100) {
+  simSeason<-nba %>%
+  select(org, pctFT) %>%
+  sample_n(size=nrow(nba), replace=T) %>%
+    mutate(bootstrap_number=i)
+  
+  bootstrap_result <- bootstrap_result %>%
+    bind_rows(simSeason)
+}
+
+prepared_bootstrap<-bootstrap_result %>%
+  filter(org %in% c("Tennessee", "Virginia")) %>%
+  group_by(bootstrap_number, org) %>%
+  summarise(meanFT=mean(pctFT), .groups="drop") %>%
+  spread(key=org, value=meanFT) %>%
+  mutate(diff=Tennessee-Virginia)
+
+# calculate confidence
+prepared_bootstrap %>%
+  summarise(confidence=mean(diff > 0, na.rm=T)) # Find the mean of the diff values that are greater than 0
+```
+#Visualizing Uncertainty
+
+- Method 1: plot the outcomes
+```{r}
+prepared_bootstrap %>%
+  ggplot()+
+  geom_density(aes(x=Tennessee), fill="orange", alpha=0.4)+
+  geom_density(aes(x=Virginia), fill="brown", alpha=0.4) +
+  geom_vline(xintercept=mean(prepared_bootstrap$Tennessee, na.rm=T),
+             linetype="dashed", color="orange") +
+  geom_vline(xintercept=mean(prepared_bootstrap$Virginia, na.rm=T),
+             linetype="dashed", color="brown") +
+  annotate(geom="text", x=mean(prepared_bootstrap$Tennessee, na.rm=T), y=Inf, label=round(mean(prepared_bootstrap$Tennessee, na.rm=T),2), angle=90, hjust=1, vjust=0)+
+  annotate(geom="text", x=mean(prepared_bootstrap$Virginia, na.rm=T), y=Inf, label=round(mean(prepared_bootstrap$Virginia, na.rm=T),2), angle=90, hjust=1, vjust=0)
+```
+# Method 2: Plotting the estimates
+```{r}
+prepared_bootstrap %>%
+  ggplot(aes(x=diff)) +
+  geom_density() +
+  geom_vline(xintercept = 0, linetype="dashed")
+```
+Where to Calculate the estimate
+
+- First, we created a new dataset out of 100 simulated seasons
+- Then, we calculate average FT % for TN and UVA for each sim
+- Finally, we calculate proportion of times average is higher for TN
+
+Interpreting confidence
+
+- The closer your are to 50%, the less confident you are.
+
+
+///////////////////////
+# Review
+//////////////////////
+```{r}
+require(tidyverse)
+games<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/4_Uni_Multivariate/data/game_summary.Rds?raw=true")
+```
+
+```{r}
+games %>%
+  group_by(isWin, yearSeason) %>%
+  summarise(avgTO=mean(tov), 
+            avgPts=mean(pts))%>%
+ # spread(key=isWin, value=avgTO) or following
+  pivot_wider(names_from = isWin, values_from = c("avgTO", "avgPts"))
+```
+
+To Bootstrap!
+```{r}
+bootstrap_result<-NULL
+for(bsNumber in 1:100){
+bootstrap_result<-games %>%
+  sample_n(size=nrow(.), replace=T) %>% # the dot is the same thing as writing nrow(games). Dot just says to fill in the object which it's being linked to
+  group_by(isWin)%>%
+  summarise(avgTO=mean(tov)) %>%
+  ungroup() %>% #best practice to ungroup after group
+  bind_rows(bootstrap_result) # take the tibble and add it to the bottom of our Bootstrap result object. Adding two rows to the bottom 100 times.
+  print(".")
+
+}
+bootstrap_result %>%
+  spread(key=isWin, value=avgTO) %>%
+  mutate(TO_diff=`TRUE`-`FALSE`) %>%
+  summarise(conf=mean(TO_diff<0))
+```
+
+
+
+
+For final part of PS4-- how to look at a statistic for EVERY TEAM. Note tha addition of group_by(nameTeam) and group_by(..., nameTeam)
+
+```{r}
+set.seed(123)
+bootstrap_result<-NULL
+for(bsNumber in 1:100){
+bootstrap_result<-games %>%
+  group_by(nameTeam)%>%
+  sample_n(size=n(), replace=T) %>% # the dot is the same thing as writing nrow(games). Dot just says to fill in the object which it's being linked to
+  group_by(isWin, nameTeam)%>%
+  summarise(avgTO=mean(tov),.groups="drop") %>%
+  ungroup() %>% #best practice to ungroup after group
+  bind_rows(bootstrap_result)
+}
+
+toplot<-bootstrap_result %>%
+  pivot_wider(names_from=isWin,values_from=avgTO) %>%
+  mutate(diff_TO=`TRUE`-`FALSE`)%>%
+  group_by(nameTeam)%>%
+  summarise(conf_TO=mean(diff_TO <0),
+            avgDiff=mean(diffTO))
+
+toplot %>%
+  mutate(conf_binary=ifelse(conf_TO > 0.95, | conf_TO<0.05, 'Confident', 'Not Confident'))%>%
+  ggplot(aes(x=avgDiff, y=reorder(nameTeam, avgDiff), fill=conf_binary))+
+  geom_bar(stat="identity")
+```

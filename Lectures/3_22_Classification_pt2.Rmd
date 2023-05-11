@@ -1,0 +1,116 @@
+---
+title: "3_22_Classification_pt2"
+author: "Alex Tomack"
+date: "2023-03-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require(tidyverse)
+require(tidymodels)
+
+ad<-read_rds("https://github.com/jbisbee1/DS1000_S2023/blob/main/Lectures/7_Classification/data/admit_data.rds?raw=true")
+```
+
+```{r}
+#run regression
+mLM<- lm(yield~sat+net_price+legacy,data=ad)
+
+# evaluate output --- confusion matrix 
+ad%>%
+  mutate(pred_attend=ifelse(predict(mLM)>.75,1,0))%>%
+  group_by(yield)%>%
+  mutate(total_attend=n())%>%
+  group_by(yield, pred_attend, total_attend)%>%
+  summarise(nStudents=n(),.groups="drop")%>%
+  mutate(prop=percent(nStudents/total_attend))%>%
+  ungroup()
+
+#loop over threshold values
+threshRes<-NULL
+
+for(thresh in seq(0,1, by=.025)){
+  tmp<-ad%>%
+  mutate(pred_attend=ifelse(predict(mLM)>thresh,1,0))%>%
+  group_by(yield)%>%
+  mutate(total_attend=n())%>%
+  group_by(yield, pred_attend, total_attend)%>%
+  summarise(nStudents=n(),.groups="drop")%>%
+  mutate(prop=nStudents/total_attend)%>%
+  ungroup()%>%
+    mutate(threshold=thresh)
+  
+  threshRes<-threshRes%>%
+    bind_rows(tmp)
+}
+
+threshRes
+
+#plot sensitivity and specificity: The graph we see of the sensitivity and specificity shows an interaction plot. Their intersection defines the threshold value we want to maximize the proportion of correct predictions while minimizing the gap between the two. 
+threshRes %>%
+  mutate(metric=ifelse(yield==0&pred_attend==0, "specificity",
+                       ifelse(yield==1&pred_attend==1, "sensitivity",NA)))%>%
+
+  drop_na(metric)%>%
+  ggplot(aes(x=threshold, y=prop,color=metric))+
+  geom_line()+
+  geom_vline(xintercept=0.65)
+
+# ROC curve: Receiver Operator Characteristic Curve
+threshRes %>%
+  mutate(metric=ifelse(yield==0&pred_attend==0, "specificity",
+                       ifelse(yield==1&pred_attend==1, "sensitivity",NA)))%>%
+
+  drop_na(metric)%>%
+  select(prop,metric,threshold)%>%
+  spread(key=metric, value=prop) %>%#or pivot.wider
+  ggplot(aes(x=1-specificity, y=sensitivity))+
+  geom_line()+
+  geom_abline(slope=1, intercept=0, linetype="dotted")
+
+require(tidymodels)
+# tidymodels package
+forAUC<-ad%>%
+  mutate(pred=predict(mLM))%>%
+  select(yield, pred)%>%
+  mutate(truth=factor(yield, levels=c("1","0")))
+
+roc_auc(forAUC,truth, pred) #data, true outcome (yield), predicted outcome
+```
+
+# Logit
+
+Different type of regression
+
+- Linear regression is cool when working with continuous data, but what if we're working with some binary data?
+- Theory: Binary outcomes are proxies for some latent measure
+  - Binary outcome **yield**: either attend or not attend
+  - Latent outcome **willingness**: continuous measure
+- The higher your willingness, the more likely you are to attend
+- Logit regression: model the willingness
+  - What is willingness actually?
+  - Probability of attending 
+- Part of a broader class of models called "generalizing linear model" (GLM)
+
+Logit equation:
+
+  -Pr(y=1|x) = G(alpha+beta*X)
+    - G is a function that turns the values of a linear function into a probability
+    - glm(formular, data, family)
+      - family=binomial(link="logit")
+      
+```{r}
+mLG<-glm(formula=yield~sat+net_price+legacy, data=ad, family=binomial(link="logit")) # just like linear regression, just glm() with family parameter
+summary(mLG)
+
+# Straight to AUC calculation  
+forAUC<-ad%>%
+  mutate(pred_yield=predict(mLG,type="response"))%>%
+  mutate(yield2=factor(yield,levels=c("1", "0")))
+
+roc_auc(forAUC, yield2, pred_yield)                                             
+```

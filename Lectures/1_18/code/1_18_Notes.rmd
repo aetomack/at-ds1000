@@ -1,0 +1,70 @@
+# Beginning of Class
+
+- Briefly worked, by ourselves, on selecting schools in Texas and finding the mean SAT.
+
+- Remember to require(tidyverse) and RUN
+
+  - Load data df<-("../data/sc_debt.Rcs")
+    
+    - "../" means go back one folder (up one level)
+    
+# Structured Data
+
+- Standardized, well-defined, easily accessed 
+
+# Unstructured
+
+- Messy, organic. 
+
+#Tabular Data Frame
+
+- AKA tibble
+
+- Rows: Units of observation 
+
+  - People, places, things
+
+- Columns: Variables of interest 
+
+  - Beliefs, rainfall, likes, profits, etc. 
+  
+  
+# Manipulating Data
+
+Basic grammar of R is: object, %>%, verb
+
+```{r}
+object %>% #this is the object
+  function() #this is the verb
+```
+
+Tidyverse has many verbs 
+
+- filter(): will select rows based on some criteria
+
+- select(): will choose certain columns
+
+```{r}
+df %>% 
+  filter(instnm == "Vanderbilt University") %>% #Only select VU (case sensitive)
+  select(instnm, adm_rate, sat_avg, md_earn_wne_p6) #select variables of interest
+```
+
+- arrange():
+
+- filter()
+```{r}
+df %>%
+  filter(adm_rate <0.1) %>% #Schools with AR <0.1
+  arrange(desc(md_earn_wne_p6)) %>% #arrange from highest
+  select(instnm, sat_avg, md_earn_wne_p6)
+```
+How good is Vanderbilt? Three data points
+
+- Very  high SAT
+
+- One of a few that select <10%
+
+- However, we don't make quite as much as other T15s
+
+
